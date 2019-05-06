@@ -13,6 +13,7 @@ import numpy as np
 import networkx as nx
 
 from prody import *
+from random import sample, choice
 from Bio import pairwise2
 from Bio.SubsMat.MatrixInfo import blosum62
 from Bio.PDB.PDBParser import PDBParser
@@ -131,16 +132,31 @@ def InitParents(node_attributes,num_parents,len_gene):
         pop[i] = gene
     return pop
 
+
 def select(pop, fitness):
     pass
         
         
-def crossover(parent1, parent2):
-       
-        pass
-    
-def mutate(child):
-    pass
+def crossover(parent1, parent2,num_points):
+    points = sample([i for i in range(len(parent1))], num_points)
+    points = list(set(points) | {0,len(parent1)-1})
+    points.sort()
+    child = []
+    i = 0  
+    names = locals()
+    while i < len(points)-1: 
+        names['child' + str(i)] = choice([parent1[points[i]:points[i+1]],parent2[points[i]:points[i+1]]])
+        child = child + names.get('child'+str(i))
+        i+=1  
+    return child
+     
+        
+def mutate(gene,mutationRate):
+    mutationNumber = int(mutationRate * len(gene))
+    mutationPosition = sample(gene,mutationNumber)
+    for i in mutationPosition:
+        gene[i] = choice(len(node_attributes['A'+str(i)]))
+    return gene
 
 
 def get_fitness(ref,sample):
