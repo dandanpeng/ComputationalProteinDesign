@@ -14,7 +14,7 @@ import networkx as nx
 
 from prody import *
 from random import sample, choice
-from Bio import pairwise2
+from Bio import Align
 from Bio.SubsMat.MatrixInfo import blosum62
 from Bio.PDB.PDBParser import PDBParser
 from Bio.PDB.Polypeptide import PPBuilder,three_to_one
@@ -36,6 +36,9 @@ for filename in all_files:
         
 # find structure overlap between TERMs
 def checkTermOverlap(protein_pdb_file,path_of_TERMs_file,protein_id):
+    # protein_pdb_file: path of the protein PDB file
+    # path_of_TERMs_file: path of the folder which include TERMs file
+    # protein_id: ID of the protein
     protein = parsePDB(protein_pdb_file).select('protein').copy()
     residues = []
     neighbors = {}
@@ -50,13 +53,7 @@ def checkTermOverlap(protein_pdb_file,path_of_TERMs_file,protein_id):
             neighbors[cid + ',' + str(resnum)].append(fcid + ',' + str(fresnum))
             
     keys = list(neighbors.keys())    
-    #for i in range(len(keys)-1):
-        #already_connect = neighbors[keys[i]]
-        #uncompared = set(keys[i+1:]) - set(already_connect) - set(keys[i])
-        #for j in list(uncompared):
-            #if set(already_connect).intersection(set(neighbors[j])) != set():
-                #overlap[keys[i]].append(j)
-                #overlap[j].append(keys[i])        
+ 
     inv_sets = list(set() for i in keys)            
     inverse = dict(zip(keys,inv_sets))
         
@@ -85,6 +82,7 @@ def sort_string(lst):
     return sorted(lst, key=embedded_numbers)    
 
 neighbors_copy = copy.deepcopy(neighbors)
+
 for i in neighbors_copy:
     neighbors_copy[i] = sort_string(neighbors_copy[i])
     neighbors_copy[i].remove(i)
@@ -112,13 +110,54 @@ for file in dsScore_uniq:
     seq = pd.DataFrame(df.iloc[:,0].str.split().tolist()).iloc[:,1:]
     G.add_nodes_from([name],match = seq.values)
     node_attributes[name] = seq.values
-    
+
+for i in node_attributes:
+    node_attributes[i] = np.where(node_attributes[i] == 'ASX',
+                                  'ASN', node_attributes[i])
+    node_attributes[i] = np.where(node_attributes[i] == 'CSO',
+                                  'CYS', node_attributes[i])
+    node_attributes[i] = np.where(node_attributes[i] == 'GLX',
+                                  'GLU', node_attributes[i])
+    node_attributes[i] = np.where(node_attributes[i] == 'HIP',
+                                  'HIS', node_attributes[i])
+    node_attributes[i] = np.where(node_attributes[i] == 'HSC',
+                                  'HIS', node_attributes[i])
+    node_attributes[i] = np.where(node_attributes[i] == 'HSD',
+                                  'HIS', node_attributes[i])
+    node_attributes[i] = np.where(node_attributes[i] == 'HSE',
+                                  'HIS', node_attributes[i])
+    node_attributes[i] = np.where(node_attributes[i] == 'HSP',
+                                  'HIS', node_attributes[i])
+    node_attributes[i] = np.where(node_attributes[i] == 'MSE',
+                                  'MET', node_attributes[i])
+    node_attributes[i] = np.where(node_attributes[i] == 'SEC',
+                                  'CYS', node_attributes[i])
+    node_attributes[i] = np.where(node_attributes[i] == 'SEP',
+                                  'SER', node_attributes[i])
+    node_attributes[i] = np.where(node_attributes[i] == 'TPO',
+                                  'THR', node_attributes[i])
+    node_attributes[i] = np.where(node_attributes[i] == 'PTR',
+                                  'TYR', node_attributes[i])
+    node_attributes[i] = np.where(node_attributes[i] == 'XLE',
+                                  'LEU', node_attributes[i])
+for i in node_attributes:
+    for x in range(node_attributes[i].shape[0]):
+        for y in range(node_attributes[i].shape[1]):
+            node_attributes[i][x,y] = three_to_one(node_attributes[i][x,y])
+
 # add edge with attributes
+edges = []
 for i in overlap:
     for j in overlap[i]:
-        G.add_edge(i,j,sameAA = find_overlap_position(neighbors_copy[i],neighbors_copy[j]))
+        edges.append((i,j))
+
+G.add_edges_from(edges)       
+G.remove_edges_from(G.selfloop_edges())   
+
+for i in G.edges:
+    G.add_edge(i[0],i[1],sameAA = find_overlap_position(neighbors_copy[i[0]],neighbors_copy[i[1]]))
  
-G.remove_edges_from(G.selfloop_edges())    
+ 
 
 
 # randomly generate sequences as parent
@@ -159,8 +198,17 @@ def mutate(gene,mutationRate):
     return gene
 
 
-def get_fitness(ref,sample):
-    return pairwise2.align.localds(ref,sample,blosum62, -10, -1,score_only = True)
+def get_fitness(individual):
+    aligner = Align.PairwiseAligner()
+    aligner.open_gap_score = -10
+    aligner.extend_gap_score = -0.5
+    aligner.substitution_matrix = blosum62
+    for i in range(individual):
+        
+        
+        
+    return aligner.score(seq1,seq2)
+
     
 
 def checkOverlap(s1,s2):
