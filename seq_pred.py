@@ -12,44 +12,35 @@ import networkx as nx
 from prody import *
 from Bio.PDB.PDBParser import PDBParser
 from Bio.PDB.Polypeptide import PPBuilder,three_to_one
-
+from function import *
             
-# read TERMs
-path = r'/Users/pengdandan/Desktop/lab_rotation/LabRotation2/test/2QMT/' # path of folder where stores the TERMs' PDB file 
-all_files =glob.glob("*.pdb")
-all_files.sort()
-
-terms = []
-for filename in all_files:
-    terms.append((filename.split('.')[0]).split('_')[1])
-terms = sort_string(terms)    
+# read TERMs and find structure overlap between TERMs
+path = '/cluster/home/pengd/project/test/2QMT/fragments' # path of folder where stores the TERMs' PDB file 
     
-# find structure overlap between TERMs
 protein_id = '2QMT'
-protein = parsePDB(protein_pdb_file).select('protein').copy()
+protein = parsePDB('2QMT.pdb').select('protein').copy()
 residues = []
 neighbors = {} #store the amino acids that consitute each TERM
 for res in protein.iterResidues():
     residues.append(res)
-    cid,resnum = res.getChid(),res.getResnum()
-    neighbors[cid+','+str(resnum)] = []
+    cid, resnum = res.getChid(),res.getResnum()
+    neighbors[cid + str(resnum)] = []
     term_frag = path + '/' + protein_id + '_' + cid + str(resnum) + '.pdb'
     f_struct = parsePDB(term_frag)
     for fres in f_struct.iterResidues():
         fcid, fresnum = fres.getChid(),fres.getResnum()
-        neighbors[cid + ',' + str(resnum)].append(fcid + ',' + str(fresnum))
-            
- 
-inv_sets = list(set() for i in terms)            
-inverse = dict(zip(terms,inv_sets))
+        neighbors[cid + str(resnum)].append(fcid + str(fresnum))
+             
+inv_sets = list(set() for i in neighbors)            
+inverse = dict(zip(list(neighbors.keys()),inv_sets))
         
-for i in terms:
+for i in neighbors:
     neighbors[i] = set(neighbors[i]) 
 
 overlap = copy.deepcopy(neighbors)
 
 # For each residue, find which TERMs include it, all these TERMs should be connected to each other           
-for i in terms:
+for i in neighbors:
     for j in neighbors[i]:
         inverse[j].add(i) 
         
@@ -67,8 +58,8 @@ for i in neighbors_copy:
     neighbors_copy[i].remove(i)
     
                        
-# read match sequence 
-dsScore_uniq = glob.glob('./designscore/uniq*.seq')     
+# read match sequences
+dsScore_uniq = glob.glob('./2QMT/designscore/uniq*.seq')     
 dsScore_uniq.sort() 
 
 match_sequence = {}
@@ -77,7 +68,6 @@ for file in dsScore_uniq:
     name = (file.split('_')[-1]).split('.')[0]
     df = pd.read_table(file,header = None)
     seq = pd.DataFrame(df.iloc[:,0].str.split().tolist()).iloc[:,1:]
-    G.add_nodes_from([name],match = seq.values)
     match_sequence[name] = seq.values
 
 # convert unnatural amino acids to common ones
@@ -106,7 +96,7 @@ class node_attributes:
     def select(self,node,number):
         return self.seq[node][number]
         
-for i in terms: 
+for i in neighbors: 
     G.add_node(i, matches = node_attributes(match_sequence).seq[i])
      
 
@@ -119,8 +109,8 @@ for i in overlap:
 G.add_edges_from(edges)       
 G.remove_edges_from(G.selfloop_edges())   
 
-for i in G.edges:
+for i in G.edges():
     G.add_edge(i[0],i[1],sameAA = find_overlap_position(neighbors_copy[i[0]],neighbors_copy[i[1]]))
  
-
-    
+#geneticAlgorithm(100, 30, 2, 0.03, node_attributes(match_sequence), 500, G)
+geneticAlgorithmPlot(100, 30, 2, 0.03, node_attributes(match_sequence), 500, G)
