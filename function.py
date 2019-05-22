@@ -166,3 +166,29 @@ def geneticAlgorithmPlot(popSize, eliteSize, num_points, mutationRate, fragments
     plt.ylabel('Average score of each generation')
     plt.xlabel('Generation')
     plt.savefig("/cluster/home/pengd/project/GAplot.jpg")  
+
+
+def restore_seq(keys, individual, neighbors):
+    possible_res = list([] for i in keys)            
+    candidate = dict(zip(list(keys,possible_res)) # inverse tells us for each residue, which TERMs include it
+    predict = dict(zip(keys,list(individual))) # predict represents the choice of fragment for each TERM
+    
+    for i in inverse:
+        for j in inverse[i]:
+            place = neighbors[j].index(i)
+            nb_fragment = predict[i]
+            if nb_fragment >= len(node_attributes(match_sequence).seq[j]):
+                print(j + ' is a gap')
+                continue
+            else:
+                candidate[i].append(node_attributes(match_sequence).select(j,nb_fragment)[place])
+
+
+    possible_seq = ''
+    for i in keys:
+        if candidate[i] != []:
+            possible_seq += Counter(candidate[i]).most_common(1)[0][0]
+        else:
+            possible_seq += '-'
+            continue
+    
