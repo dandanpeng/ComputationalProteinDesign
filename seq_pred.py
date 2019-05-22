@@ -10,10 +10,10 @@ import pandas as pd, numpy as np
 import networkx as nx
 
 from prody import *
-from Bio.PDB.PDBParser import PDBParser
-from Bio.PDB.Polypeptide import PPBuilder,three_to_one
 from function import *
-            
+from collections import Counter
+from Bio.PDB.Polypeptide import three_to_one
+
 # read TERMs and find structure overlap between TERMs
 path = '/cluster/home/pengd/project/test/2QMT/fragments' # path of folder where stores the TERMs' PDB file 
     
@@ -32,12 +32,12 @@ for res in protein.iterResidues():
         neighbors[cid + str(resnum)].append(fcid + str(fresnum))
              
 inv_sets = list(set() for i in neighbors)            
-inverse = dict(zip(list(neighbors.keys()),inv_sets))
+inverse = dict(zip(list(neighbors.keys()),inv_sets)) # inverse tells us for each residue, which TERMs include it
         
 for i in neighbors:
     neighbors[i] = set(neighbors[i]) 
 
-overlap = copy.deepcopy(neighbors)
+overlap = copy.deepcopy(neighbors) # overlap tells us, for each TERM, which TERMs have shared residues with it
 
 # For each residue, find which TERMs include it, all these TERMs should be connected to each other           
 for i in neighbors:
@@ -59,14 +59,14 @@ for i in neighbors_copy:
     
                        
 # read match sequences
-dsScore_uniq = glob.glob('./2QMT/designscore/uniq*.seq')     
+dsScore_uniq = glob.glob(r'/Users/pengdandan/Desktop/lab_rotation/LabRotation2/test/2QMT /designscore/uniq*.seq')     
 dsScore_uniq.sort() 
 
 match_sequence = {}
 
 for file in dsScore_uniq:
     name = (file.split('_')[-1]).split('.')[0]
-    df = pd.read_table(file,header = None)
+    df = pd.read_csv(file,header = None, sep = '\t')
     seq = pd.DataFrame(df.iloc[:,0].str.split().tolist()).iloc[:,1:]
     match_sequence[name] = seq.values
 
@@ -95,12 +95,15 @@ class node_attributes:
         
     def select(self,node,number):
         return self.seq[node][number]
-        
+    
+    def nb_frag(self, node):
+        return len(self.seq[node])
+    
 for i in neighbors: 
     G.add_node(i, matches = node_attributes(match_sequence).seq[i])
      
 
-# add edge with attributes
+# add edges
 edges = []
 for i in overlap:
     for j in overlap[i]:
@@ -109,8 +112,38 @@ for i in overlap:
 G.add_edges_from(edges)       
 G.remove_edges_from(G.selfloop_edges())   
 
+# add edge attributes
 for i in G.edges():
     G.add_edge(i[0],i[1],sameAA = find_overlap_position(neighbors_copy[i[0]],neighbors_copy[i[1]]))
- 
-#geneticAlgorithm(100, 30, 2, 0.03, node_attributes(match_sequence), 500, G)
-geneticAlgorithmPlot(100, 30, 2, 0.03, node_attributes(match_sequence), 500, G)
+
+
+for i in range(10):
+    pop = geneticAlgorithm(100, 50, 2, 0.03, node_attributes(match_sequence), 20, G)
+    np.savetxt('result' + str(i) + '.txt',pop[0:3,:], fmt = '%i')
+
+
+#geneticAlgorithmPlot(100, 50, 2, 0.03, node_attributes(match_sequence), 500, G)
+
+possible_res = list([] for i in neighbors)            
+candidate = dict(zip(list(neighbors.keys()),possible_res)) # inverse tells us for each residue, which TERMs include it
+
+predict = dict(zip(keys,list(pop[0]))) # predict represents the choice of fragment for each TERM
+for i in inverse:
+    for j in inverse[i]:
+        place = neighbors[j].index(i)
+        nb_fragment = predict[i]
+        if nb_fragment >= len(node_attributes(match_sequence).seq[j]):
+            print(j + ' is a gap')
+            continue
+        else:
+            candidate[i].append(node_attributes(match_sequence).select(j,nb_fragment)[place])
+
+
+possible_seq = ''
+for i in keys:
+    if candidate[i] != []:
+        possible_seq += Counter(candidate[i]).most_common(1)[0][0]
+    else:
+        possible_seq += '-'
+        continue
+    

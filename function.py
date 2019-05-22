@@ -54,8 +54,10 @@ def selection(population, eliteSize, fragments, G):
     for i in range(len(population)):
         fitnessResults[i] = get_fitness(population[i],fragments, G)
     sortedResults = sorted(fitnessResults.items(), key = operator.itemgetter(1), reverse = True)
-    elites = [i[0] for i in sortedResults[:eliteSize]]    
-    return population[elites,:]      
+    elites = [i[0] for i in sortedResults[:eliteSize]]   
+    non_elites =  list(np.random.choice(range(len(population)), size = eliteSize))
+    matingpool = np.append(population[elites,:],population[non_elites,:],axis = 0)
+    return matingpool     
 
 # simulate crossover process between two parents
 # input: two parents (list), and num_points (the number of points between which crossover happens)
@@ -76,11 +78,10 @@ def crossover(parent1, parent2,num_points):
 # simulate crossover process among population, randomly select two individuals as parents each time
 # input: matingpool (candidate parents), popSize (size of children), num_points
 # output: children (2-dimensional array, each row is an individual)
-def crossoverPopulation(matingpool, popSize, num_points):
-    children = np.zeros(shape = (popSize, matingpool.shape[1]), dtype = int)
-    poolSize = len(matingpool)
-    for i in range(popSize):
-        parents = sample(range(poolSize),2)
+def crossoverPopulation(matingpool,num_points):
+    children = np.zeros(shape = (matingpool.shape[0], matingpool.shape[1]), dtype = int)
+    for i in range(len(children)):
+        parents = sample(range(len(children)),2)
         children[i] = crossover(matingpool[parents[0]],matingpool[parents[1]], num_points)
     return children
 
@@ -126,9 +127,9 @@ def get_fitness(individual,fragments, G):
 
 
 
-def nextGeneration(population, popSize, eliteSize, num_points, mutationRate, fragments, G):
+def nextGeneration(population, eliteSize, num_points, mutationRate, fragments, G):
     matingpool = selection(population, eliteSize, fragments, G)
-    children = crossoverPopulation(matingpool, popSize, num_points)
+    children = crossoverPopulation(matingpool, num_points)
     nextGeneration = mutatePopulation(children, mutationRate, fragments)
     return nextGeneration
 
@@ -147,8 +148,7 @@ def geneticAlgorithm(popSize, eliteSize, num_points, mutationRate, fragments, ge
     print("Initial population finished")
     
     for i in range(generations):
-        print('generation' + str(i))
-        pop = nextGeneration(pop, popSize, eliteSize, num_points, mutationRate, fragments, G)
+        pop = nextGeneration(pop, eliteSize, num_points, mutationRate, fragments, G)
       
     return pop
 
@@ -159,7 +159,7 @@ def geneticAlgorithmPlot(popSize, eliteSize, num_points, mutationRate, fragments
     
     avg = []
     for i in range(generations):
-        pop = nextGeneration(pop, popSize, eliteSize, num_points, mutationRate, fragments, G)
+        pop = nextGeneration(pop, eliteSize, num_points, mutationRate, fragments, G)
         avg.append(avScorePop(pop,fragments,G))
     
     plt.plot(avg)
