@@ -168,9 +168,9 @@ def geneticAlgorithmPlot(popSize, eliteSize, num_points, mutationRate, fragments
     plt.savefig("/cluster/home/pengd/project/GAplot.jpg")  
 
 
-def restore_seq(keys, individual, neighbors):
+def restore_seq(keys, individual, neighbors,inverse):
     possible_res = list([] for i in keys)            
-    candidate = dict(zip(list(keys,possible_res)) # inverse tells us for each residue, which TERMs include it
+    candidate = dict(zip(keys,possible_res)) # inverse tells us for each residue, which TERMs include it
     predict = dict(zip(keys,list(individual))) # predict represents the choice of fragment for each TERM
     
     for i in inverse:
@@ -183,7 +183,6 @@ def restore_seq(keys, individual, neighbors):
             else:
                 candidate[i].append(node_attributes(match_sequence).select(j,nb_fragment)[place])
 
-
     possible_seq = ''
     for i in keys:
         if candidate[i] != []:
@@ -192,3 +191,4 @@ def restore_seq(keys, individual, neighbors):
             possible_seq += '-'
             continue
     
+    return possible_seq

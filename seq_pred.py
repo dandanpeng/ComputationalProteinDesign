@@ -30,9 +30,10 @@ for res in protein.iterResidues():
     for fres in f_struct.iterResidues():
         fcid, fresnum = fres.getChid(),fres.getResnum()
         neighbors[cid + str(resnum)].append(fcid + str(fresnum))
-             
+
+keys = sort_string(neighbor.keys())             
 inv_sets = list(set() for i in neighbors)            
-inverse = dict(zip(list(neighbors.keys()),inv_sets)) # inverse tells us for each residue, which TERMs include it
+inverse = dict(zip(list(keys,inv_sets)) # inverse tells us for each residue, which TERMs include it
         
 for i in neighbors:
     neighbors[i] = set(neighbors[i]) 
@@ -117,33 +118,18 @@ for i in G.edges():
     G.add_edge(i[0],i[1],sameAA = find_overlap_position(neighbors_copy[i[0]],neighbors_copy[i[1]]))
 
 
+sequence = np.zeros(shape = (30, 56), dtype = int)
 for i in range(10):
     pop = geneticAlgorithm(100, 50, 2, 0.03, node_attributes(match_sequence), 20, G)
+    sequence[0 + 3*i :3 + 3*i] = pop[0:3]
     np.savetxt('result' + str(i) + '.txt',pop[0:3,:], fmt = '%i')
 
+f = open("/Users/pengdandan/Desktop/lab_rotation/LabRotation2/test/sequence.txt",'w')
 
-#geneticAlgorithmPlot(100, 50, 2, 0.03, node_attributes(match_sequence), 500, G)
-
-possible_res = list([] for i in neighbors)            
-candidate = dict(zip(list(neighbors.keys()),possible_res)) # inverse tells us for each residue, which TERMs include it
-
-predict = dict(zip(keys,list(pop[0]))) # predict represents the choice of fragment for each TERM
-for i in inverse:
-    for j in inverse[i]:
-        place = neighbors[j].index(i)
-        nb_fragment = predict[i]
-        if nb_fragment >= len(node_attributes(match_sequence).seq[j]):
-            print(j + ' is a gap')
-            continue
-        else:
-            candidate[i].append(node_attributes(match_sequence).select(j,nb_fragment)[place])
-
-
-possible_seq = ''
-for i in keys:
-    if candidate[i] != []:
-        possible_seq += Counter(candidate[i]).most_common(1)[0][0]
-    else:
-        possible_seq += '-'
-        continue
+for i in range(len(sequence)):
+    f.write('>seq' + str(i) + '\n')
+    f.write(restore_seq(keys, sequence[i], neighbors,inverse) + '\n')
     
+f.close()
+    
+
