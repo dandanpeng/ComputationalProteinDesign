@@ -11,7 +11,6 @@ import networkx as nx
 
 from prody import *
 from function import *
-from collections import Counter
 from Bio.PDB.Polypeptide import three_to_one
 
 # read TERMs and find structure overlap between TERMs
@@ -31,18 +30,22 @@ for res in protein.iterResidues():
         fcid, fresnum = fres.getChid(),fres.getResnum()
         neighbors[cid + str(resnum)].append(fcid + str(fresnum))
 
-keys = sort_string(neighbor.keys())             
-inv_sets = list(set() for i in neighbors)            
-inverse = dict(zip(list(keys,inv_sets)) # inverse tells us for each residue, which TERMs include it
-        
-for i in neighbors:
-    neighbors[i] = set(neighbors[i]) 
+keys = sort_string(neighbors.keys())             
 
-overlap = copy.deepcopy(neighbors) # overlap tells us, for each TERM, which TERMs have shared residues with it
+empty_sets = list(set() for i in neighbors)            
+inverse = dict(zip(list(keys),empty_sets)) # inverse tells us for each residue, which TERMs include it
+
+neigh_sets = list(set(neighbors[i]) for i in keys)     
+neighbors_sets = dict(zip(list(keys), neigh_sets))
+
+for i in neighbors:    
+    neighbors[i] = sort_string(neighbors[i]) 
+
+overlap = copy.deepcopy(neighbors_sets) # overlap tells us, for each TERM, which TERMs have shared residues with it
 
 # For each residue, find which TERMs include it, all these TERMs should be connected to each other           
-for i in neighbors:
-    for j in neighbors[i]:
+for i in neigh_sets:
+    for j in neigh_sets[i]:
         inverse[j].add(i) 
         
 for i in inverse:
@@ -115,21 +118,21 @@ G.remove_edges_from(G.selfloop_edges())
 
 # add edge attributes
 for i in G.edges():
-    G.add_edge(i[0],i[1],sameAA = find_overlap_position(neighbors_copy[i[0]],neighbors_copy[i[1]]))
+    G.add_edge(i[0],i[1],sameAA = find_overlap_position(neighbors[i[0]],neighbors[i[1]]))
 
 
 sequence = np.zeros(shape = (30, 56), dtype = int)
 for i in range(10):
-    pop = geneticAlgorithm(100, 50, 2, 0.03, node_attributes(match_sequence), 20, G)
+    pop = geneticAlgorithm(100, 50, 2, 0.03, node_attributes(match_sequence), 50, G)
     sequence[0 + 3*i :3 + 3*i] = pop[0:3]
-    np.savetxt('result' + str(i) + '.txt',pop[0:3,:], fmt = '%i')
 
-f = open("/Users/pengdandan/Desktop/lab_rotation/LabRotation2/test/sequence.txt",'w')
+f = open("/Users/pengdandan/Desktop/lab_rotation/LabRotation2/test/sequence2.txt",'w')
 
 for i in range(len(sequence)):
     f.write('>seq' + str(i) + '\n')
-    f.write(restore_seq(keys, sequence[i], neighbors,inverse) + '\n')
+    f.write(restore_seq(keys, sequence[i], neighbors,inverse, node_attributes(match_sequence)) + '\n')
     
 f.close()
     
 
+geneticAlgorithmPlot(100, 50, 2, 0.03, fragments, 50, G)

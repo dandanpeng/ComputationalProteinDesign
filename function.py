@@ -1,12 +1,17 @@
 import re, copy
 import numpy as np
 import operator 
-from Bio import Align
-from Bio.SubsMat.MatrixInfo import blosum62
-from random import sample, choice, random
+
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
+
+from Bio import Align
+from Bio.SubsMat.MatrixInfo import blosum62
+from random import sample, choice, random
+from collections import Counter
+
+
 
 ## sort string based on the embedded number
 
@@ -52,7 +57,7 @@ def initialPopulation(popSize, fragments):
 def selection(population, eliteSize, fragments, G):
     fitnessResults = {}
     for i in range(len(population)):
-        fitnessResults[i] = get_fitness(population[i],fragments, G)
+        fitnessResults[i] = getFitness(population[i],fragments, G)
     sortedResults = sorted(fitnessResults.items(), key = operator.itemgetter(1), reverse = True)
     elites = [i[0] for i in sortedResults[:eliteSize]]   
     non_elites =  list(np.random.choice(range(len(population)), size = eliteSize))
@@ -96,7 +101,7 @@ def mutate(individual,mutationRate,fragments):
     return individual
 
 # simulate gene mutation on population
-# input: population, mutationRate, fragments
+# input: population, mutationRate, fragments`
 # output: mutatePop (mutated population)
 def mutatePopulation(population, mutationRate, fragments):
     mutatedPop = copy.deepcopy(population)
@@ -107,7 +112,7 @@ def mutatePopulation(population, mutationRate, fragments):
 # calculate score for each individual based on the amino acids    
 # input: individual, fragments, G (graph)
 # output: score of the input individual
-def get_fitness(individual,fragments, G):
+def getFitness(individual,fragments, G):
     aligner = Align.PairwiseAligner()
     aligner.open_gap_score = -10
     aligner.extend_gap_score = -0.5
@@ -135,17 +140,8 @@ def nextGeneration(population, eliteSize, num_points, mutationRate, fragments, G
 
 
 
-def avScorePop(population, fragments, G):
-    score = []
-    for i in range(population.shape[0]):
-        score.append(get_fitness(population[i],fragments,G))
-    return np.mean(score)
-
-
-
 def geneticAlgorithm(popSize, eliteSize, num_points, mutationRate, fragments, generations,G):
     pop = initialPopulation(popSize, fragments)
-    print("Initial population finished")
     
     for i in range(generations):
         pop = nextGeneration(pop, eliteSize, num_points, mutationRate, fragments, G)
@@ -153,35 +149,98 @@ def geneticAlgorithm(popSize, eliteSize, num_points, mutationRate, fragments, ge
     return pop
 
 
+############# Plot function ###############
+def avScorePop(population, fragments, G):
+    score = []
+    for i in range(population.shape[0]):
+        score.append(getFitness(population[i],fragments,G))
+    return np.mean(score)
 
-def geneticAlgorithmPlot(popSize, eliteSize, num_points, mutationRate, fragments, generations,G):
+
+def geneticAlgorithmPlot(popSize, eliteSize, num_points, mutationRate, fragments, generations, G):
     pop = initialPopulation(popSize, fragments)
     
     avg = []
-    for i in range(generations):
+    for i in range(generations): 
         pop = nextGeneration(pop, eliteSize, num_points, mutationRate, fragments, G)
         avg.append(avScorePop(pop,fragments,G))
     
     plt.plot(avg)
     plt.ylabel('Average score of each generation')
     plt.xlabel('Generation')
-    plt.savefig("/cluster/home/pengd/project/GAplot.jpg")  
+    plt.savefig("/Users/pengdandan/Desktop/lab_rotation/LabRotation2/test/GAplot.jpg")  
 
 
-def restore_seq(keys, individual, neighbors,inverse):
+def nb_frag(pop, match_sequence):
+    nb_frags = [len(match_sequence[i]) for i in sort_string(match_sequence.keys())]
+    nb_frag = 0
+    
+    for individual in pop:
+        diff = individual - nb_frags
+        nb_frag += (diff < 0).sum(0)
+    
+    return nb_frag/len(pop)
+             
+            
+def nb_frag_plot(popSize, eliteSize, num_points, mutationRate, fragments, generations, G, match_sequence):
+    pop = initialPopulation(popSize, fragments)
+    
+    number = []
+    for i in range(generations):
+        pop = nextGeneration(pop, eliteSize, num_points, mutationRate, fragments, G)
+        nb_pop_frag = nb_frag(pop,match_sequence)
+        number.append(nb_pop_frag)
+        
+    plt.plot(number)
+    plt.ylabel('Average fragments number of each generation')
+    plt.xlabel('Generation')
+    
+
+
+def len_frag(pop, match_equence):
+    len_frags = [match_sequence[i].shape[1] for i in sort_string(match_sequence.keys())]
+    nb_frags = [len(match_sequence[i]) for i in sort_string(match_sequence.keys())]
+    
+    len_frag = 0
+    for individual in pop:
+        diff = individual - nb_frags
+        for i in range(len(diff)):
+            if diff[i] < 0:
+                len_frag += len_frags[i]
+                
+    return len_frag/(len(pop) * len(match_sequence))
+    
+
+
+def len_frag_plot(popSize, eliteSize, num_points, mutationRate, fragments, generations, G, match_sequence):
+    pop = initialPopulation(popSize, fragments)
+    
+    length = []
+    for i in range(generations):
+        pop = nextGeneration(pop, eliteSize, num_points, mutationRate, fragments, G)
+        len_pop_frag = len_frag(pop, match_sequence)
+        length.append(len_pop_frag)
+     
+    plt.plot(length)
+    plt.ylabel('Average fragments length of each generation')
+    plt.xlabel('Generation')
+    
+        
+        
+def restore_seq(keys, individual, neighbors,inverse,fragments):
     possible_res = list([] for i in keys)            
     candidate = dict(zip(keys,possible_res)) # inverse tells us for each residue, which TERMs include it
     predict = dict(zip(keys,list(individual))) # predict represents the choice of fragment for each TERM
     
-    for i in inverse:
-        for j in inverse[i]:
-            place = neighbors[j].index(i)
-            nb_fragment = predict[i]
-            if nb_fragment >= len(node_attributes(match_sequence).seq[j]):
-                print(j + ' is a gap')
+    for i in inverse: # for each residue i
+        for j in inverse[i]: # for each TERM j that inchludes residue i
+            place = neighbors[j].index(i) # find i's place in TERM j's residue list
+            nb_fragment = predict[i] # choose wich fragment for TERM j
+            if nb_fragment >= len(fragments.seq[j]):
+                #print(j + ' is a gap')
                 continue
             else:
-                candidate[i].append(node_attributes(match_sequence).select(j,nb_fragment)[place])
+                candidate[i].append(fragments.select(j,nb_fragment)[place]) # add possible AA according to fragment's sequence 
 
     possible_seq = ''
     for i in keys:
