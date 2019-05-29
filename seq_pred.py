@@ -44,8 +44,8 @@ for i in neighbors:
 overlap = copy.deepcopy(neighbors_sets) # overlap tells us, for each TERM, which TERMs have shared residues with it
 
 # For each residue, find which TERMs include it, all these TERMs should be connected to each other           
-for i in neigh_sets:
-    for j in neigh_sets[i]:
+for i in neighbors_sets:
+    for j in neighbors_sets[i]:
         inverse[j].add(i) 
         
 for i in inverse:
@@ -63,7 +63,7 @@ for i in neighbors_copy:
     
                        
 # read match sequences
-dsScore_uniq = glob.glob(r'/Users/pengdandan/Desktop/lab_rotation/LabRotation2/test/2QMT /designscore/uniq*.seq')     
+dsScore_uniq = glob.glob(r'/cluster/home/pengd/project/test/2QMT/designscore/uniq*.seq')     
 dsScore_uniq.sort() 
 
 match_sequence = {}
@@ -102,9 +102,11 @@ class node_attributes:
     
     def nb_frag(self, node):
         return len(self.seq[node])
+
+fragments = node_attributes(match_sequence)
     
 for i in neighbors: 
-    G.add_node(i, matches = node_attributes(match_sequence).seq[i])
+    G.add_node(i, matches = fragments.seq[i])
      
 
 # add edges
@@ -121,18 +123,19 @@ for i in G.edges():
     G.add_edge(i[0],i[1],sameAA = find_overlap_position(neighbors[i[0]],neighbors[i[1]]))
 
 
-sequence = np.zeros(shape = (30, 56), dtype = int)
-for i in range(10):
-    pop = geneticAlgorithm(100, 50, 2, 0.03, node_attributes(match_sequence), 50, G)
-    sequence[0 + 3*i :3 + 3*i] = pop[0:3]
+#sequence = np.zeros(shape = (30, 56), dtype = int)
+#for i in range(10):
+    #pop = geneticAlgorithm(100, 50, 2, 0.03, node_attributes(match_sequence), 50, G)
+    #sequence[0 + 3*i :3 + 3*i] = pop[0:3]
 
-f = open("/Users/pengdandan/Desktop/lab_rotation/LabRotation2/test/sequence2.txt",'w')
+#f = open("/Users/pengdandan/Desktop/lab_rotation/LabRotation2/test/sequence2.txt",'w')
 
-for i in range(len(sequence)):
-    f.write('>seq' + str(i) + '\n')
-    f.write(restore_seq(keys, sequence[i], neighbors,inverse, node_attributes(match_sequence)) + '\n')
+#for i in range(len(sequence)):
+    #f.write('>seq' + str(i) + '\n')
+    #f.write(restore_seq(keys, sequence[i], neighbors,inverse, node_attributes(match_sequence)) + '\n')
     
-f.close()
-    
+#f.close()
 
-geneticAlgorithmPlot(100, 50, 2, 0.03, fragments, 50, G)
+plot(100, 50, 3, 0.03, fragments, 100, G)
+plot(100, 50, 3, 0.03, fragments, 500, G)
+

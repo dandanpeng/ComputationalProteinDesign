@@ -150,29 +150,16 @@ def geneticAlgorithm(popSize, eliteSize, num_points, mutationRate, fragments, ge
 
 
 ############# Plot function ###############
-def avScorePop(population, fragments, G):
+def av_sc(population, fragments, G):
     score = []
     for i in range(population.shape[0]):
         score.append(getFitness(population[i],fragments,G))
     return np.mean(score)
 
 
-def geneticAlgorithmPlot(popSize, eliteSize, num_points, mutationRate, fragments, generations, G):
-    pop = initialPopulation(popSize, fragments)
-    
-    avg = []
-    for i in range(generations): 
-        pop = nextGeneration(pop, eliteSize, num_points, mutationRate, fragments, G)
-        avg.append(avScorePop(pop,fragments,G))
-    
-    plt.plot(avg)
-    plt.ylabel('Average score of each generation')
-    plt.xlabel('Generation')
-    plt.savefig("/Users/pengdandan/Desktop/lab_rotation/LabRotation2/test/GAplot.jpg")  
 
-
-def nb_frag(pop, match_sequence):
-    nb_frags = [len(match_sequence[i]) for i in sort_string(match_sequence.keys())]
+def nb_frag(pop, fragments):
+    nb_frags = [len(fragments.seq[i]) for i in sort_string(fragments.seq.keys())]
     nb_frag = 0
     
     for individual in pop:
@@ -180,26 +167,12 @@ def nb_frag(pop, match_sequence):
         nb_frag += (diff < 0).sum(0)
     
     return nb_frag/len(pop)
-             
-            
-def nb_frag_plot(popSize, eliteSize, num_points, mutationRate, fragments, generations, G, match_sequence):
-    pop = initialPopulation(popSize, fragments)
-    
-    number = []
-    for i in range(generations):
-        pop = nextGeneration(pop, eliteSize, num_points, mutationRate, fragments, G)
-        nb_pop_frag = nb_frag(pop,match_sequence)
-        number.append(nb_pop_frag)
-        
-    plt.plot(number)
-    plt.ylabel('Average fragments number of each generation')
-    plt.xlabel('Generation')
-    
 
 
-def len_frag(pop, match_equence):
-    len_frags = [match_sequence[i].shape[1] for i in sort_string(match_sequence.keys())]
-    nb_frags = [len(match_sequence[i]) for i in sort_string(match_sequence.keys())]
+
+def len_frag(pop, fragments):
+    len_frags = [fragments.seq[i].shape[1] for i in sort_string(fragments.seq.keys())]
+    nb_frags = [len(fragments.seq[i]) for i in sort_string(fragments.seq.keys())]
     
     len_frag = 0
     for individual in pop:
@@ -208,40 +181,67 @@ def len_frag(pop, match_equence):
             if diff[i] < 0:
                 len_frag += len_frags[i]
                 
-    return len_frag/(len(pop) * len(match_sequence))
+    return len_frag/(len(pop) * len(fragments.seq))
     
 
 
-def len_frag_plot(popSize, eliteSize, num_points, mutationRate, fragments, generations, G, match_sequence):
+def plot(popSize, eliteSize, num_points, mutationRate, fragments, generations, G):
     pop = initialPopulation(popSize, fragments)
     
+    score = []
+    number = []
     length = []
-    for i in range(generations):
-        pop = nextGeneration(pop, eliteSize, num_points, mutationRate, fragments, G)
-        len_pop_frag = len_frag(pop, match_sequence)
+    for i in range(generations): 
+        pop = nextGeneration(pop, eliteSize, num_points, mutationRate, fragments, G)        
+        nb_pop_frag = nb_frag(pop,fragments)
+        len_pop_frag = len_frag(pop,fragments)
+        score.append(av_sc(pop,fragments,G))
+        number.append(nb_pop_frag)
         length.append(len_pop_frag)
-     
+        
+    plt.plot(score)
+    plt.ylabel('Average score of each generation')
+    plt.xlabel('Generation')
+    plt.savefig("/cluster/home/pengd/project/test/scplot.jpg")  
+    plt.close()
+    
+    plt.plot(number)
+    plt.ylabel('Average fragments number of each generation')
+    plt.xlabel('Generation')
+    plt.savefig("/cluster/home/pengd/project/test/nbplot.jpg")  
+    plt.close()
+    
     plt.plot(length)
     plt.ylabel('Average fragments length of each generation')
     plt.xlabel('Generation')
-    
+    plt.savefig("/cluster/home/pengd/project/test/lenplot.jpg")  
+
         
         
-def restore_seq(keys, individual, neighbors,inverse,fragments):
+def restore_seq(keys, individual, neighbors,fragments,G):
     possible_res = list([] for i in keys)            
     candidate = dict(zip(keys,possible_res)) # inverse tells us for each residue, which TERMs include it
     predict = dict(zip(keys,list(individual))) # predict represents the choice of fragment for each TERM
     
-    for i in inverse: # for each residue i
-        for j in inverse[i]: # for each TERM j that inchludes residue i
-            place = neighbors[j].index(i) # find i's place in TERM j's residue list
-            nb_fragment = predict[i] # choose wich fragment for TERM j
-            if nb_fragment >= len(fragments.seq[j]):
-                #print(j + ' is a gap')
-                continue
-            else:
-                candidate[i].append(fragments.select(j,nb_fragment)[place]) # add possible AA according to fragment's sequence 
-
+    for i in G.edges:
+        if predict[i[0]] < len(fragments.seq[i[0]]) and predict[i[1]] < len(fragments.seq[i[1]]):
+            u_frag = fragments.select(i[0],predict[i[0]])
+            v_frag = fragments.select(i[1],predict[i[1]])
+            for j in G.edges[i]['sameAA']:
+                aa = (neighbors[i[0]])[j[0]]
+                candidate[aa].append(u_frag[j[0]])
+                candidate[aa].append(v_frag[j[1]])
+        if predict[i[0]] < len(fragments.seq[i[0]]) and predict[i[1]] >= len(fragments.seq[i[1]]):
+            u_frag = fragments.select(i[0],predict[i[0]])
+            for j in G.edges[i]['sameAA']:
+                aa = (neighbors[i[0]])[j[0]]
+                candidate[aa].append(u_frag[j[0]])
+        if predict[i[0]] >= len(fragments.seq[i[0]]) and predict[i[1]] < len(fragments.seq[i[1]]):
+            v_frag = fragments.select(i[1],predict[i[1]])
+            for j in G.edges[i]['sameAA']:
+                aa = (neighbors[i[0]])[j[0]]
+                candidate[aa].append(v_frag[j[1]])
+    
     possible_seq = ''
     for i in keys:
         if candidate[i] != []:
