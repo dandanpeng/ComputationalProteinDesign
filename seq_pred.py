@@ -136,6 +136,6 @@ for i in G.edges():
     
 #f.close()
 
-plot(100, 50, 3, 0.03, fragments, 100, G)
+plot(100, 50, 3, 0.03, fragments, 50, G)
 plot(100, 50, 3, 0.03, fragments, 500, G)
 

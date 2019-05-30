@@ -35,21 +35,60 @@ def find_overlap_position(term1,term2):
 ######### Genetic Algorithm #############
 # input: fragments is a dictonary (keys: TERMs' names, values: matched sequence) 
 # output:  list, each element represents the index of randomly chosen sequence
-def createIndividual(fragments):
+def create_individual(fragments):
     individual = []
-    for i in fragments.seq:
+    for i in sort_string(fragments.seq.keys()):
         individual.append(round(random() * len(fragments.seq[i])))
     return individual
+
 
 # create initial population, 
 # input: size of population, fragments
 # output: a 2-dimensional numpy array, each row is an individual
-def initialPopulation(popSize, fragments):
+def initial_population(popSize, fragments):
     population = np.zeros(shape = (popSize,len(fragments.seq)),dtype = int)
     
     for i in range(popSize):
-       population[i] = createIndividual(fragments)
+       population[i] = create_individual(fragments)
     return population
+
+
+# calculate score for each individual based on the amino acids    
+# input: individual, fragments, G (graph)
+# output: score of the input individual
+def getFitness(individual,fragments, G):
+    aligner = Align.PairwiseAligner()
+    aligner.open_gap_score = -10
+    aligner.extend_gap_score = -0.5
+    aligner.substitution_matrix = blosum62
+    
+    keys = sort_string(fragments.seq.keys())
+    selection = dict(zip(keys,individual))
+    score = 0
+    
+    for i in G.edges:
+        if selection[i[0]] < len(fragments.seq[i[0]]) and selection[i[1]] < len(fragments.seq[i[1]]):
+            for j in G.edges[i]['sameAA']:
+                u_seq = (fragments.select(i[0],selection[i[0]]))[j[0]]
+                v_seq = (fragments.select(i[1],selection[i[1]]))[j[1]]
+                score += aligner.score(u_seq,v_seq)
+        if selection[i[0]] < len(fragments.seq[i[0]]) and selection[i[1]] >= len(fragments.seq[i[1]]):
+            for j in G.edges[i]['sameAA']:
+                u_seq = (fragments.select(i[0],selection[i[0]]))[j[0]]
+                v_seq = '-'
+                score += aligner.score(u_seq,v_seq)
+        if selection[i[0]] >= len(fragments.seq[i[0]]) and selection[i[1]] >= len(fragments.seq[i[1]]):
+            for j in G.edges[i]['sameAA']:
+                u_seq = '-'
+                v_seq = (fragments.select(i[1],selection[i[1]]))[j[1]]
+                score += aligner.score(u_seq,v_seq)
+                
+    nb_frags = [len(fragments.seq[i]) for i in keys]
+    diff = nb_frags - individual
+    count_gap = (diff < 0).sum(0)
+         
+    return score - count_gap
+
 
 # select elites from children
 # input: population, size of elites, fragmants, graph that represents topolpgy pf protein
@@ -63,6 +102,7 @@ def selection(population, eliteSize, fragments, G):
     non_elites =  list(np.random.choice(range(len(population)), size = eliteSize))
     matingpool = np.append(population[elites,:],population[non_elites,:],axis = 0)
     return matingpool     
+
 
 # simulate crossover process between two parents
 # input: two parents (list), and num_points (the number of points between which crossover happens)
@@ -83,7 +123,7 @@ def crossover(parent1, parent2,num_points):
 # simulate crossover process among population, randomly select two individuals as parents each time
 # input: matingpool (candidate parents), popSize (size of children), num_points
 # output: children (2-dimensional array, each row is an individual)
-def crossoverPopulation(matingpool,num_points):
+def crossover_population(matingpool,num_points):
     children = np.zeros(shape = (matingpool.shape[0], matingpool.shape[1]), dtype = int)
     for i in range(len(children)):
         parents = sample(range(len(children)),2)
@@ -103,48 +143,26 @@ def mutate(individual,mutationRate,fragments):
 # simulate gene mutation on population
 # input: population, mutationRate, fragments`
 # output: mutatePop (mutated population)
-def mutatePopulation(population, mutationRate, fragments):
+def mutate_population(population, mutationRate, fragments):
     mutatedPop = copy.deepcopy(population)
     for ind in range(len(population)):
         mutatedPop[ind] = mutate(mutatedPop[ind],mutationRate,fragments)
         return mutatedPop
 
-# calculate score for each individual based on the amino acids    
-# input: individual, fragments, G (graph)
-# output: score of the input individual
-def getFitness(individual,fragments, G):
-    aligner = Align.PairwiseAligner()
-    aligner.open_gap_score = -10
-    aligner.extend_gap_score = -0.5
-    aligner.substitution_matrix = blosum62
-    
-    keys = sort_string(fragments.seq.keys())
-    rand_seq = dict(zip(keys,individual))
-    score = 0
-    
-    for i in G.edges:
-        if rand_seq[i[0]] < len(fragments.seq[i[0]]) and rand_seq[i[1]] < len(fragments.seq[i[1]]):
-            for j in G.edges[i]['sameAA']:
-                u_seq = (fragments.select(i[0],rand_seq[i[0]]))[j[0]]
-                v_seq = (fragments.select(i[1],rand_seq[i[1]]))[j[1]]
-                score += aligner.score(u_seq,v_seq)        
-    return score
 
-
-
-def nextGeneration(population, eliteSize, num_points, mutationRate, fragments, G):
+def next_generation(population, eliteSize, num_points, mutationRate, fragments, G):
     matingpool = selection(population, eliteSize, fragments, G)
-    children = crossoverPopulation(matingpool, num_points)
-    nextGeneration = mutatePopulation(children, mutationRate, fragments)
+    children = crossover_population(matingpool, num_points)
+    nextGeneration = mutate_population(children, mutationRate, fragments)
     return nextGeneration
 
 
 
-def geneticAlgorithm(popSize, eliteSize, num_points, mutationRate, fragments, generations,G):
-    pop = initialPopulation(popSize, fragments)
+def genetic_algorithm(popSize, eliteSize, num_points, mutationRate, fragments, generations,G):
+    pop = initial_population(popSize, fragments)
     
     for i in range(generations):
-        pop = nextGeneration(pop, eliteSize, num_points, mutationRate, fragments, G)
+        pop = next_generation(pop, eliteSize, num_points, mutationRate, fragments, G)
       
     return pop
 
@@ -158,63 +176,63 @@ def av_sc(population, fragments, G):
 
 
 
-def nb_frag(pop, fragments):
+def nb_frag(population, fragments):
     nb_frags = [len(fragments.seq[i]) for i in sort_string(fragments.seq.keys())]
     nb_frag = 0
     
-    for individual in pop:
+    for individual in population:
         diff = individual - nb_frags
         nb_frag += (diff < 0).sum(0)
     
-    return nb_frag/len(pop)
+    return nb_frag/len(population)
 
 
 
-def len_frag(pop, fragments):
+def len_frag(population, fragments):
     len_frags = [fragments.seq[i].shape[1] for i in sort_string(fragments.seq.keys())]
-    nb_frags = [len(fragments.seq[i]) for i in sort_string(fragments.seq.keys())]
+    nb_frags = [fragments.seq[i].shape[0] for i in sort_string(fragments.seq.keys())]
     
     len_frag = 0
-    for individual in pop:
+    for individual in population:
         diff = individual - nb_frags
         for i in range(len(diff)):
             if diff[i] < 0:
                 len_frag += len_frags[i]
                 
-    return len_frag/(len(pop) * len(fragments.seq))
+    return len_frag/(len(population) * len(fragments.seq))
     
 
 
 def plot(popSize, eliteSize, num_points, mutationRate, fragments, generations, G):
-    pop = initialPopulation(popSize, fragments)
+    pop = initial_population(popSize, fragments)
     
     score = []
     number = []
     length = []
     for i in range(generations): 
-        pop = nextGeneration(pop, eliteSize, num_points, mutationRate, fragments, G)        
-        nb_pop_frag = nb_frag(pop,fragments)
-        len_pop_frag = len_frag(pop,fragments)
-        score.append(av_sc(pop,fragments,G))
+        pop = next_generation(pop, eliteSize, num_points, mutationRate, fragments, G)        
+        nb_pop_frag = nb_frag(pop[0:10],fragments)
+        len_pop_frag = len_frag(pop[0:10],fragments)
+        score.append(av_sc(pop[0:10],fragments,G))
         number.append(nb_pop_frag)
         length.append(len_pop_frag)
         
     plt.plot(score)
     plt.ylabel('Average score of each generation')
     plt.xlabel('Generation')
-    plt.savefig("/cluster/home/pengd/project/test/scplot.jpg")  
+    #plt.savefig("/cluster/home/pengd/project/test/scplot.jpg")  
     plt.close()
     
     plt.plot(number)
     plt.ylabel('Average fragments number of each generation')
     plt.xlabel('Generation')
-    plt.savefig("/cluster/home/pengd/project/test/nbplot.jpg")  
+    #plt.savefig("/cluster/home/pengd/project/test/nbplot.jpg")  
     plt.close()
     
     plt.plot(length)
     plt.ylabel('Average fragments length of each generation')
     plt.xlabel('Generation')
-    plt.savefig("/cluster/home/pengd/project/test/lenplot.jpg")  
+    #plt.savefig("/cluster/home/pengd/project/test/lenplot.jpg")  
 
         
         
