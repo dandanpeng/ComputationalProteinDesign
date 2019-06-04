@@ -94,16 +94,15 @@ G = nx.Graph()
 
 # add node with attributes
 class node_attributes:
-    def __init__(self,seq):
+    def __init__(self, seq):
         self.seq = seq
         
-    def select(self,node,number):
+    def select(self, node, number):
         return self.seq[node][number]
     
-    def nb_frag(self, node):
+    def count(self, node):
         return len(self.seq[node])
 
-fragments = node_attributes(match_sequence)
     
 for i in neighbors: 
     G.add_node(i, matches = fragments.seq[i])
@@ -136,6 +135,6 @@ for i in G.edges():
     
 #f.close()
 
-plot(100, 50, 3, 0.03, fragments, 50, G)
-plot(100, 50, 3, 0.03, fragments, 500, G)
+plot(100, 50, 3, 0.03, node_attributes(match_sequence), 50, G)
+plot(100, 50, 3, 0.03, node_attributes(match_sequence), 500, G)
 
