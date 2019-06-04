@@ -35,20 +35,20 @@ def find_overlap_position(term1,term2):
 ######### Genetic Algorithm #############
 # input: list frag_count, which stores the number of fragments each TERM has
 # output:  list, each element represents the index of randomly chosen sequence
-def create_individual(frag):
+def create_individual(frag, keys):
     individual = []
-    for i in frag.seq:
+    for i in keys:
         individual.append(round(random() * frag.count(i)))    
     return individual
 
 # create initial population, 
 # input: size of population, fragments
 # output: a 2-dimensional numpy array, each row is an individual
-def initial_population(popSize, frag):
+def initial_population(popSize, frag, keys):
     population = np.zeros(shape = (popSize,len(frag.seq)),dtype = int)
     
     for i in range(popSize):
-       population[i] = create_individual(frag)
+       population[i] = create_individual(frag, keys)
        
     return population
 
@@ -161,7 +161,7 @@ def next_generation(population, eliteSize, num_points, mutationRate, frag, G, ke
 
 
 def genetic_algorithm(popSize, eliteSize, num_points, mutationRate, frag, generations, G, keys):
-    pop = initial_population(popSize, frag)
+    pop = initial_population(popSize, frag, keys)
     
     for i in range(generations):
         pop = next_generation(pop, eliteSize, num_points, mutationRate, frag, G, keys)
@@ -206,7 +206,7 @@ def len_frag(population, frag):
 
 
 def plot(popSize, eliteSize, num_points, mutationRate, frag, generations, G):
-    pop = initial_population(popSize, frag)
+    pop = initial_population(popSize, frag, keys)
     
     score = []
     number = []
