@@ -1,6 +1,7 @@
 import re, copy
 import numpy as np
 import operator 
+import multiprocessing
 
 import matplotlib as mpl
 mpl.use('Agg')
@@ -35,20 +36,20 @@ def find_overlap_position(term1,term2):
 ######### Genetic Algorithm #############
 # input: list frag_count, which stores the number of fragments each TERM has
 # output:  list, each element represents the index of randomly chosen sequence
-def create_individual(frag, keys):
+def create_individual(frag):
     individual = []
-    for i in keys:
+    for i in sort_string(frag.seq.keys()):
         individual.append(round(random() * frag.count(i)))    
     return individual
 
 # create initial population, 
 # input: size of population, fragments
 # output: a 2-dimensional numpy array, each row is an individual
-def initial_population(popSize, frag, keys):
+def initial_population(popSize, frag):
     population = np.zeros(shape = (popSize,len(frag.seq)),dtype = int)
     
     for i in range(popSize):
-       population[i] = create_individual(frag, keys)
+       population[i] = create_individual(frag)
        
     return population
 
@@ -57,7 +58,7 @@ def initial_population(popSize, frag, keys):
 # input: individual, fragments, G (graph)
 # output: score of the input individual
 
-def get_fitness(individual, keys, frag, G):
+def compare_aa(individual, keys, frag, G):    
     aligner = Align.PairwiseAligner()
     aligner.open_gap_score = -10
     aligner.extend_gap_score = -0.5
@@ -66,28 +67,95 @@ def get_fitness(individual, keys, frag, G):
     sel_frag = dict(zip(keys, individual))
     score = 0  
     
+    for edge in G.edges:
+        if sel_frag[edge[0]] < frag.count(edge[0]) and sel_frag[edge[1]] < frag.count(edge[1]):
+            for pos in G.edges[edge]['sameAA']:
+                u_aa = frag.select(edge[0],sel_frag[edge[0]])[pos[0]]
+                v_aa = frag.select(edge[1],sel_frag[edge[1]])[pos[1]]
+                score += aligner.score(u_aa, v_aa)
+
+    return score
+
+## parallel programming
+def compare_aa(indivual, keys, frag, G):
+        aligner = Align.PairwiseAligner()
+    aligner.open_gap_score = -10
+    aligner.extend_gap_score = -0.5
+    aligner.substitution_matrix = blosum62
+    
+    sel_frag = dict(zip(keys, individual))
+    score = 0  
+        
     for i in sel_frag:
         if sel_frag[i] >= frag.count(i):
             len_term = frag.seq[i].shape[1]
             frag.seq[i] = np.append(frag.seq[i], [['-'] * len_term], axis = 0)
-        
-    for i in G.edges:
-        for j in G.edges[i]['sameAA']:
-            u_aa = frag.select(i[0],sel_frag[i[0]])[j[0]]
-            v_aa = frag.select(i[1],sel_frag[i[1]])[j[1]]
-            score += aligner.score(u_aa, v_aa)
-   
-    return score
     
-        
+    edges1 = G.edges[0:331]
+    edges2 = G.edges[331: 761]
+    pos1 = [G.edges[i]['sameAA'] for i in edges1]
+    pos2 = [G.edges[i]['sameAA'] for i in egdes2]
+    
+    pool = multiprocessing.Pool()
+    res = pool.map(score, paramlist)
+
+# restore to letter form
+def restore_seq(keys, individual, neighbors, frag, G):
+    possible_res = list([] for i in keys)            
+    candidate = dict(zip(keys,possible_res)) # inverse tells us for each residue, which TERMs include it
+    sel_frag = dict(zip(keys,individual)) # predict represents the choice of fragment for each TERM
+           
+    for i in sel_frag:
+        if sel_frag[i] >= frag.count(i):
+            len_term = frag.seq[i].shape[1]
+            frag.seq[i] = np.append(frag.seq[i], [['-'] * len_term], axis = 0)
+    
+    for edge in G.edges:
+        u_frag = frag.select(edge[0],sel_frag[edge[0]])
+        v_frag = frag.select(edge[1],sel_frag[edge[1]])
+        for pos in G.edges[edge]['sameAA']:
+            aa = (neighbors[edge[0]])[pos[0]] ## aa is every amino acid shared by node u and v
+            candidate[aa].append(u_frag[pos[0]])
+            candidate[aa].append(v_frag[pos[1]])
+
+    possible_seq = ''
+    for i in keys:
+        if candidate[i] != []:
+            possible_seq += Counter(candidate[i]).most_common(1)[0][0]
+        else:
+            possible_seq += '-'
+            continue
+    
+    return possible_seq
+
+
+def individual_gap(keys, individual, neighbors, frag, G):
+    seq = restore_seq(keys, individual, neighbors, frag, G)
+    return seq.count('-')
+
+
+def nb_frag(individual, frag):
+    nb_frags = [frag.count[i]) for i in sort_string(frag.seq.keys())]
+    diff = individual - nb_frags
+    return (diff < 0).sum(0)
+
+def energy_func(individual, keys, frag, G, neighbors):
+    return compare_aa(individual, keys, frag, G) 
+            - individual_gaps(keys, individual, neighbor, frag, G)
+            - nb_frag(individual, frag) 
+            
 # select elites from children
 # input: population, size of elites, fragmants, graph that represents topolpgy pf protein
 # output: individuals who have high score
 def selection(population, eliteSize, frag, G, keys):
     fitnessResults = {}
+    
     for i in range(len(population)):
         fitnessResults[i] = get_fitness(population[i], keys, frag, G)
+
     sortedResults = sorted(fitnessResults.items(), key = operator.itemgetter(1), reverse = True)
+    
+    
     elites = [i[0] for i in sortedResults[:eliteSize]]   
     non_elites =  list(np.random.choice(range(len(population)), size = eliteSize))
     matingpool = np.append(population[elites,:],population[non_elites,:],axis = 0)
@@ -97,19 +165,6 @@ def selection(population, eliteSize, frag, G, keys):
 # simulate crossover process between two parents
 # input: two parents (list), and num_points (the number of points between which crossover happens)
 # output: child produced by parent1 and parent2       
-def crossover(parent1, parent2, num_points):
-    points = sample(range(len(parent1)), num_points)
-    points = list(set(points) | {0,len(parent1)})
-    points.sort()
-    child = []
-    i = 0  
-    names = locals()
-    while i < len(points)-1: 
-        names['child' + str(i)] = choice([parent1[points[i]:points[i+1]],parent2[points[i]:points[i+1]]])
-        child = child + list(names.get('child'+str(i)))
-        i+=1  
-    return child
-
 def crossover(parent1, parent2, num_points):
     points = sample(range(len(parent1)), num_points)
     points = list(set(points) | {0, len(parent1)})
@@ -238,36 +293,4 @@ def plot(popSize, eliteSize, num_points, mutationRate, frag, generations, G):
 
         
         
-def restore_seq(keys, individual, neighbors,frag,G):
-    possible_res = list([] for i in keys)            
-    candidate = dict(zip(keys,possible_res)) # inverse tells us for each residue, which TERMs include it
-    predict = dict(zip(keys,list(individual))) # predict represents the choice of fragment for each TERM
-    
-    for i in G.edges:
-        if predict[i[0]] < len(frag.seq[i[0]]) and predict[i[1]] < len(frag.seq[i[1]]):
-            u_frag = frag.select(i[0],predict[i[0]])
-            v_frag = frag.select(i[1],predict[i[1]])
-            for j in G.edges[i]['sameAA']:
-                aa = (neighbors[i[0]])[j[0]]
-                candidate[aa].append(u_frag[j[0]])
-                candidate[aa].append(v_frag[j[1]])
-        if predict[i[0]] < len(frag.seq[i[0]]) and predict[i[1]] >= len(frag.seq[i[1]]):
-            u_frag = frag.select(i[0],predict[i[0]])
-            for j in G.edges[i]['sameAA']:
-                aa = (neighbors[i[0]])[j[0]]
-                candidate[aa].append(u_frag[j[0]])
-        if predict[i[0]] >= len(frag.seq[i[0]]) and predict[i[1]] < len(frag.seq[i[1]]):
-            v_frag = frag.select(i[1],predict[i[1]])
-            for j in G.edges[i]['sameAA']:
-                aa = (neighbors[i[0]])[j[0]]
-                candidate[aa].append(v_frag[j[1]])
-    
-    possible_seq = ''
-    for i in keys:
-        if candidate[i] != []:
-            possible_seq += Counter(candidate[i]).most_common(1)[0][0]
-        else:
-            possible_seq += '-'
-            continue
-    
-    return possible_seq
+
