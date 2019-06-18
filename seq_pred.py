@@ -64,6 +64,7 @@ for i in neighbors_copy:
                        
 # read match sequences
 dsScore_uniq = glob.glob(r'/cluster/home/pengd/project/test/2QMT/designscore/uniq*.seq')     
+dsScore_uniq = glob.glob(r'/Users/pengdandan/Desktop/lab_rotation/LabRotation2/test/2QMT /designscore/uniq*.seq')
 dsScore_uniq.sort() 
 
 match_sequence = {}

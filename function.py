@@ -58,7 +58,7 @@ def initial_population(popSize, frag):
 # input: individual, fragments, G (graph)
 # output: score of the input individual
 
-def compare_aa(individual, keys, frag, G):    
+def compare_aa(individual, keys, frag, G):
     aligner = Align.PairwiseAligner()
     aligner.open_gap_score = -10
     aligner.extend_gap_score = -0.5
@@ -76,47 +76,22 @@ def compare_aa(individual, keys, frag, G):
 
     return score
 
-## parallel programming
-def compare_aa(indivual, keys, frag, G):
-        aligner = Align.PairwiseAligner()
-    aligner.open_gap_score = -10
-    aligner.extend_gap_score = -0.5
-    aligner.substitution_matrix = blosum62
-    
-    sel_frag = dict(zip(keys, individual))
-    score = 0  
-        
-    for i in sel_frag:
-        if sel_frag[i] >= frag.count(i):
-            len_term = frag.seq[i].shape[1]
-            frag.seq[i] = np.append(frag.seq[i], [['-'] * len_term], axis = 0)
-    
-    edges1 = G.edges[0:331]
-    edges2 = G.edges[331: 761]
-    pos1 = [G.edges[i]['sameAA'] for i in edges1]
-    pos2 = [G.edges[i]['sameAA'] for i in egdes2]
-    
-    pool = multiprocessing.Pool()
-    res = pool.map(score, paramlist)
-
 # restore to letter form
 def restore_seq(keys, individual, neighbors, frag, G):
+    frag_copy = copy.copy(frag)
     possible_res = list([] for i in keys)            
-    candidate = dict(zip(keys,possible_res)) # inverse tells us for each residue, which TERMs include it
+    candidate = dict(zip(keys, possible_res)) # inverse tells us for each residue, which TERMs include it
     sel_frag = dict(zip(keys,individual)) # predict represents the choice of fragment for each TERM
            
     for i in sel_frag:
-        if sel_frag[i] >= frag.count(i):
-            len_term = frag.seq[i].shape[1]
-            frag.seq[i] = np.append(frag.seq[i], [['-'] * len_term], axis = 0)
+        if sel_frag[i] >= frag_copy.count(i):
+            len_term = frag_copy.seq[i].shape[1]
+            frag_copy.seq[i] = np.append(frag_copy.seq[i], [['-'] * len_term], axis = 0)
     
-    for edge in G.edges:
-        u_frag = frag.select(edge[0],sel_frag[edge[0]])
-        v_frag = frag.select(edge[1],sel_frag[edge[1]])
-        for pos in G.edges[edge]['sameAA']:
-            aa = (neighbors[edge[0]])[pos[0]] ## aa is every amino acid shared by node u and v
-            candidate[aa].append(u_frag[pos[0]])
-            candidate[aa].append(v_frag[pos[1]])
+    for pos in inverse:
+        for term in inverse[pos]:
+            indice = neighbors[term].index(pos)
+            candidate[pos].append(frag.select(term, sel_frag[term])[indice])
 
     possible_seq = ''
     for i in keys:
@@ -135,14 +110,12 @@ def individual_gap(keys, individual, neighbors, frag, G):
 
 
 def nb_frag(individual, frag):
-    nb_frags = [frag.count[i]) for i in sort_string(frag.seq.keys())]
+    nb_frags = [frag.count(i) for i in sort_string(frag.seq.keys())]
     diff = individual - nb_frags
     return (diff < 0).sum(0)
 
-def energy_func(individual, keys, frag, G, neighbors):
-    return compare_aa(individual, keys, frag, G) 
-            - individual_gaps(keys, individual, neighbor, frag, G)
-            - nb_frag(individual, frag) 
+def energy(individual, keys, frag, G):
+    return compare_aa(individual, keys, frag, G) - nb_frag(individual, frag) 
             
 # select elites from children
 # input: population, size of elites, fragmants, graph that represents topolpgy pf protein
@@ -151,7 +124,7 @@ def selection(population, eliteSize, frag, G, keys):
     fitnessResults = {}
     
     for i in range(len(population)):
-        fitnessResults[i] = get_fitness(population[i], keys, frag, G)
+        fitnessResults[i] = energy(population[i], keys, frag, G)
 
     sortedResults = sorted(fitnessResults.items(), key = operator.itemgetter(1), reverse = True)
     

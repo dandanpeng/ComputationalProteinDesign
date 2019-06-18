@@ -15,9 +15,20 @@ end = time.time()
 print("initial_population: " + str(end - start))
 
 start = time.time()
-get_fitness(pop[0], keys, fragments, G) 
+compare_aa(pop[0], keys, fragments, G)
 end = time.time()
-print("get_fiteness: " + str(end - start))
+print("compare_aa: " + str(end - start))
+
+start = time.time()
+nb_frag(individual, frag)
+end = time.time()
+print("nb_frag: " + str(end - start))
+
+start = time.time()
+energy(individual, keys, frag, G)
+end = time.time()
+print("energy: " + str(end - start))
+
 
 start = time.time()
 selection(pop, 50, fragments, G, keys)
