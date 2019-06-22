@@ -15,7 +15,8 @@ from Bio.PDB.Polypeptide import three_to_one
 
 # read TERMs and find structure overlap between TERMs
 path = '/cluster/home/pengd/project/test/2QMT/fragments' # path of folder where stores the TERMs' PDB file 
-    
+path = '/Users/pengdandan/Desktop/lab_rotation/LabRotation2/test/2QMT '
+
 protein_id = '2QMT'
 protein = parsePDB('2QMT.pdb').select('protein').copy()
 residues = []
@@ -53,18 +54,10 @@ for i in inverse:
         for k in inverse[i] - {j}:
             overlap[j].add(k)    
 
-# neighbors_copy stores the amino acids which constitute each TERM, 
-# but the amino acid which is same with the one who defined the TERM is removed
-neighbors_copy = copy.deepcopy(neighbors)
-
-for i in neighbors_copy:
-    neighbors_copy[i] = sort_string(neighbors_copy[i])
-    neighbors_copy[i].remove(i)
-    
-                       
+                  
 # read match sequences
 dsScore_uniq = glob.glob(r'/cluster/home/pengd/project/test/2QMT/designscore/uniq*.seq')     
-dsScore_uniq = glob.glob(r'/Users/pengdandan/Desktop/lab_rotation/LabRotation2/test/2QMT /designscore/uniq*.seq')
+dsScore_uniq = glob.glob(r'/Users/pengdandan/Desktop/lab_rotation/LabRotation2/test/designscore/uniq*.seq')
 dsScore_uniq.sort() 
 
 match_sequence = {}
@@ -104,11 +97,19 @@ class node_attributes:
     def count(self, node):
         return len(self.seq[node])
 
-    
+
+fragments = node_attributes(match_sequence)   
+
+count = []
+for i in keys:
+    count.append(fragments.count(i))
+frags_count = dict(zip(keys, count))
+
+
+# add nodes
 for i in neighbors: 
     G.add_node(i, matches = fragments.seq[i])
      
-
 # add edges
 edges = []
 for i in overlap:

@@ -13,7 +13,6 @@ from random import sample, choice, random
 from collections import Counter
 
 
-
 ## sort string based on the embedded number
 
 def embedded_numbers(s):
@@ -36,21 +35,19 @@ def find_overlap_position(term1,term2):
 ######### Genetic Algorithm #############
 # input: list frag_count, which stores the number of fragments each TERM has
 # output:  list, each element represents the index of randomly chosen sequence
-def create_individual(frag):
+def create_individual(keys, frags_count):
     individual = []
-    for i in sort_string(frag.seq.keys()):
-        individual.append(round(random() * frag.count(i)))    
+    for i in keys:
+        individual.append(round(random() * frags_count[i]))   
     return individual
 
 # create initial population, 
 # input: size of population, fragments
 # output: a 2-dimensional numpy array, each row is an individual
-def initial_population(popSize, frag):
-    population = np.zeros(shape = (popSize,len(frag.seq)),dtype = int)
-    
+def initial_population(popSize, keys, frags_count):
+    population = np.zeros(shape = (popSize,len(keys)),dtype = int)   
     for i in range(popSize):
-       population[i] = create_individual(frag)
-       
+       population[i] = create_individual(keys, frags_count)       
     return population
 
 
@@ -58,73 +55,44 @@ def initial_population(popSize, frag):
 # input: individual, fragments, G (graph)
 # output: score of the input individual
 
-def compare_aa(individual, keys, frag, G):
+def compare_aa(individual, keys, frag, frags_count, G):
     aligner = Align.PairwiseAligner()
     aligner.open_gap_score = -10
     aligner.extend_gap_score = -0.5
     aligner.substitution_matrix = blosum62
     
     sel_frag = dict(zip(keys, individual))
-    score = 0  
+    sel_frag_seq = {}
+    for i in keys:
+        if sel_frag[i] < frags_count[i]:
+            sel_frag_seq[i] = frag.select(i, sel_frag[i])      
     
-    for edge in G.edges:
-        if sel_frag[edge[0]] < frag.count(edge[0]) and sel_frag[edge[1]] < frag.count(edge[1]):
-            for pos in G.edges[edge]['sameAA']:
-                u_aa = frag.select(edge[0],sel_frag[edge[0]])[pos[0]]
-                v_aa = frag.select(edge[1],sel_frag[edge[1]])[pos[1]]
-                score += aligner.score(u_aa, v_aa)
+    score = 0  
 
+    for edge in G.edges:
+        if sel_frag[edge[0]] < frags_count[edge[0]] and sel_frag[edge[1]] < frags_count[edge[1]]:
+             for pos in G.edges[edge]['sameAA']:
+                u_aa = sel_frag_seq[edge[0]][pos[0]]
+                v_aa = sel_frag_seq[edge[1]][pos[1]]
+                score += aligner.score(u_aa, v_aa)
     return score
 
-# restore to letter form
-def restore_seq(keys, individual, neighbors, frag, G):
-    frag_copy = copy.copy(frag)
-    possible_res = list([] for i in keys)            
-    candidate = dict(zip(keys, possible_res)) # inverse tells us for each residue, which TERMs include it
-    sel_frag = dict(zip(keys,individual)) # predict represents the choice of fragment for each TERM
-           
-    for i in sel_frag:
-        if sel_frag[i] >= frag_copy.count(i):
-            len_term = frag_copy.seq[i].shape[1]
-            frag_copy.seq[i] = np.append(frag_copy.seq[i], [['-'] * len_term], axis = 0)
-    
-    for pos in inverse:
-        for term in inverse[pos]:
-            indice = neighbors[term].index(pos)
-            candidate[pos].append(frag.select(term, sel_frag[term])[indice])
 
-    possible_seq = ''
-    for i in keys:
-        if candidate[i] != []:
-            possible_seq += Counter(candidate[i]).most_common(1)[0][0]
-        else:
-            possible_seq += '-'
-            continue
-    
-    return possible_seq
+def term_count(individual, keys, frags_count):
+    sel_frag = dict(zip(keys, individual))    
+    is_null = [sel_frag[i] < frags_count[i] for i in keys]
+    return sum(is_null)
 
-
-def individual_gap(keys, individual, neighbors, frag, G):
-    seq = restore_seq(keys, individual, neighbors, frag, G)
-    return seq.count('-')
-
-
-def nb_frag(individual, frag):
-    nb_frags = [frag.count(i) for i in sort_string(frag.seq.keys())]
-    diff = individual - nb_frags
-    return (diff < 0).sum(0)
-
-def energy(individual, keys, frag, G):
-    return compare_aa(individual, keys, frag, G) - nb_frag(individual, frag) 
+def energy(individual, keys, frag, frags_count, G):
+    return compare_aa(individual, keys, frag, frags_count, G) - term_count(individual, keys, frags_count) 
             
 # select elites from children
 # input: population, size of elites, fragmants, graph that represents topolpgy pf protein
 # output: individuals who have high score
-def selection(population, eliteSize, frag, G, keys):
+def selection(population, eliteSize, frag, frags_count, G, keys):
     fitnessResults = {}
-    
     for i in range(len(population)):
-        fitnessResults[i] = energy(population[i], keys, frag, G)
+        fitnessResults[i] = energy(population[i], keys, frag, frags_count, G)
 
     sortedResults = sorted(fitnessResults.items(), key = operator.itemgetter(1), reverse = True)
     
@@ -163,40 +131,64 @@ def crossover_population(matingpool, num_points):
 # simulate gene mutation on individual
 # input: individual, mutationRate (rate of mutation), fragments
 # output: individual (mutated individual)        
-def mutate(individual, mutationRate, frag, keys):
+def mutate(individual, mutationRate, frags_count, keys):
     mutationNumber = int(mutationRate * len(individual))
     mutationPosition = sample(range(len(individual)),mutationNumber)
     for i in mutationPosition:
-        individual[i] = choice(range(frag.count(keys[i])))
+        individual[i] = choice(range(frags_count[keys[i]]))
     return individual
 
 # simulate gene mutation on population
 # input: population, mutationRate, fragments`
 # output: mutatePop (mutated population)
-def mutate_population(population, mutationRate, frag, keys):
+def mutate_population(population, mutationRate, frags_count, keys):
     mutatedPop = population.copy()
     for ind in range(len(population)):
-        mutatedPop[ind] = mutate(mutatedPop[ind], mutationRate, frag, keys)
+        mutatedPop[ind] = mutate(mutatedPop[ind], mutationRate, frags_count, keys)
         return mutatedPop
         
 
-def next_generation(population, eliteSize, num_points, mutationRate, frag, G, keys):
-    matingpool = selection(population, eliteSize, frag, G, keys)
+def next_generation(population, eliteSize, num_points, mutationRate, frag, frags_count, G, keys):
+    matingpool = selection(population, eliteSize, frag, frags_count, G, keys)
     children = crossover_population(matingpool, num_points)
-    nextGeneration = mutate_population(children, mutationRate, frag, keys)
+    nextGeneration = mutate_population(children, mutationRate, frags_count, keys)
     return nextGeneration
 
 
 
-def genetic_algorithm(popSize, eliteSize, num_points, mutationRate, frag, generations, G, keys):
-    pop = initial_population(popSize, frag, keys)
+def genetic_algorithm(popSize, eliteSize, num_points, mutationRate, frag, frags_count, generations, G, keys):
+    pop = initial_population(popSize, keys, frags_count)
     
     for i in range(generations):
-        pop = next_generation(pop, eliteSize, num_points, mutationRate, frag, G, keys)
+        pop = next_generation(pop, eliteSize, num_points, mutationRate, frag, frags_count, G, keys)
       
     return pop
 
 
+# restore to letter form
+def restore_seq(keys, individual, neighbors, frag, G):
+    possible_res = list([] for i in keys)            
+    candidate = dict(zip(keys, possible_res)) # inverse tells us for each residue, which TERMs include it
+    sel_frag = dict(zip(keys,individual)) # predict represents the choice of fragment for each TERM
+    
+    if_null = [sel_frag[i] < frag.count(i) for i in keys]
+    if_null_dic = dict(zip(keys, if_null))
+    
+    for pos in inverse:
+        for term in inverse[pos]:
+            if if_null_dic[term] == True:
+                indice = neighbors[term].index(pos)
+                candidate[pos].append(frag.select(term, sel_frag[term])[indice])
+
+    possible_seq = ''
+    for i in keys:
+        if candidate[i] != []:
+            possible_seq += Counter(candidate[i]).most_common(1)[0][0]
+        else:
+            possible_seq += '-'
+            continue
+    
+    return possible_seq
 ############# Plot function ###############
 def av_sc(population, frag, G):
     score = []
@@ -234,13 +226,13 @@ def len_frag(population, frag):
 
 
 def plot(popSize, eliteSize, num_points, mutationRate, frag, generations, G):
-    pop = initial_population(popSize, frag, keys)
+    pop = initial_population(popSize, frag)
     
     score = []
     number = []
     length = []
     for i in range(generations): 
-        pop = next_generation(pop, eliteSize, num_points, mutationRate, frag, G)        
+        pop = next_generation(pop, eliteSize, num_points, mutationRate, frag, G, keys)        
         nb_pop_frag = nb_frag(pop[0:10],frag)
         len_pop_frag = len_frag(pop[0:10],frag)
         score.append(av_sc(pop[0:10],frag,G))
@@ -264,6 +256,6 @@ def plot(popSize, eliteSize, num_points, mutationRate, frag, generations, G):
     plt.xlabel('Generation')
     #plt.savefig("/cluster/home/pengd/project/test/lenplot.jpg")  
 
-        
+#############       
         
 

@@ -1,31 +1,31 @@
-import timeit
+import time
 from function import *
-from seq_pred import *
+#from seq_pred import *
 
 fragments = node_attributes(match_sequence)
 
 start = time.time()
-create_individual(fragments)
+create_individual(keys, frags_count)
 end = time.time()
 print("create_indiviaudl: " + str(end - start))
 
 start = time.time()
-initial_population(100, fragments)
+pop = initial_population(100, keys, frags_count)
 end = time.time()
 print("initial_population: " + str(end - start))
 
 start = time.time()
-compare_aa(pop[0], keys, fragments, G)
+compare_aa(pop[0], keys, fragments, frags_count, G)
 end = time.time()
 print("compare_aa: " + str(end - start))
 
 start = time.time()
-nb_frag(individual, frag)
+term_count(pop[0], keys, frags_count)
 end = time.time()
-print("nb_frag: " + str(end - start))
+print("term_count: " + str(end - start))
 
 start = time.time()
-energy(individual, keys, frag, G)
+energy(pop[0], keys, frag, frags_count, G)
 end = time.time()
 print("energy: " + str(end - start))
 
@@ -61,7 +61,7 @@ end = time.time()
 print("next_generation: " + str(end - start))
 
 start = time.time()
-genetic_algorithm(100, 50, 3, 0.03, fragments, 1, G, keys)
+genetic_algorithm(100, 50, 3, 0.03, fragments, frags_count, 1, G, keys)
 end = time.time()
 print("genetic_algorithm: " + str(end - start))
 
