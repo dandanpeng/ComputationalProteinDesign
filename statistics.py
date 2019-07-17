@@ -1,6 +1,6 @@
 import time
 from function import *
-#from seq_pred import *
+from seq_pred import *
 
 fragments = node_attributes(match_sequence)
 
