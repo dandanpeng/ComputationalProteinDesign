@@ -8,6 +8,10 @@ Created on Tue Jul  9 16:24:37 2019
 import math
 import numpy as np
 
+import matplotlib as mpl
+mpl.use('Agg')
+import matplotlib.pyplot as plt
+
 from Bio import Align
 from Bio.PDB.PDBParser import PDBParser
 from Bio.SubsMat.MatrixInfo import blosum62
@@ -29,9 +33,19 @@ def cuckoo_search_new(protein, match, pa):
     
     # generate individual by randomly select one from each TERM's match sequence
     def create_individual():
+        '''
         individual = []
         for i in protein.terms:
-            individual.append(round(random() * match.frags_count[i]))   
+            individual.append(round(random() * match.frags_count[i]))
+        '''
+        individual = [None] * len(protein.terms)
+        for i in range(len(protein.terms)):
+            nb = np.random.rand()
+            if nb <= 0.75:
+                individual[i] = round(random() * match.frags_count[protein.terms[i]])
+            else:
+                individual[i] = match.frags_count[protein.terms[i]]
+
         return individual
     
     # create initial population
@@ -68,7 +82,7 @@ def cuckoo_search_new(protein, match, pa):
         return np.sum(is_null)/len(protein.terms)
     
     def energy(individual):
-        return compare_aa(individual) - 100 * term_count(individual) 
+        return compare_aa(individual) - 10 * term_count(individual) 
     
     # Simple bounds of the search domain
     def simple_bounds(s, Lb, Ub):
@@ -103,7 +117,7 @@ def cuckoo_search_new(protein, match, pa):
     def get_best_nest(nest, newnest, fitness):
         for j in range(len(nest)):
             fnew = energy(newnest[j])
-            if fnew <= fitness[j]:
+            if fnew >= fitness[j]:
                 fitness[j] = fnew
                 nest[j] = newnest[j]        
         fmax = max(fitness.values())     
@@ -113,7 +127,7 @@ def cuckoo_search_new(protein, match, pa):
     # Replace some nests by constructing new solutions/nests
     # A fraction of worse nests are discovered with a probability pa
     def empty_nests(nest, Lb, Ub, pa):
-        K = np.random.uniform(0,1, size = nest.shape) > pa
+        K = np.random.uniform(0, 1, size = nest.shape) > pa
         nest1 = nest.copy()
         nest2 = nest.copy()
         np.random.shuffle(nest1)
@@ -158,30 +172,39 @@ def cuckoo_search_new(protein, match, pa):
         for pp in ppb.build_peptides(structure):
             seq += pp.get_sequence()
         return seq
+    original = real_seq()
     
     # Random initial solutions
     nest = initial_population(100)
-    
     # Get the current best
     fitness = {}
     for i in range(len(nest)):
         fitness[i] = energy(nest[i])
     fmax, bestnest, nest, fitness = get_best_nest(nest, nest, fitness)
     
-    score = []
+    fitscore = []
+    alignscore = []
     # Starting iterations
-    for i in range(1):
+    for i in range(50):
         # Generate new solutions (but keep the current best)
-        new_nest = get_cuckoos(nest, bestnest, Lb, Ub)
+        nest_a = nest.copy()
+        new_nest = get_cuckoos(nest_a, bestnest, Lb, Ub)
         fnew, bestnest, nest, fitness = get_best_nest(nest, new_nest, fitness)
         # Discovery and randomization
-        new_nest = empty_nests(nest, Lb, Ub, pa)
+        nest_b = nest.copy()
+        new_nest = empty_nests(nest_b, Lb, Ub, pa)
     
         # Evaluate this solution
         fnew, bestnest, nest, fitness = get_best_nest(nest, new_nest, fitness)
+        fitscore.append(fnew)
         predict = restore_seq(nest[bestnest])
-        original = real_seq()
-        score.append(aligner.score(original, predict))
+        alignscore.append(aligner.score(predict, original))
     
-    return(score)
+    plt.plot(fitscore)
+    plt.savefig(protein.protein_id + '_fitness.jpg')
+    plt.close()
+    plt.plot(alignscore)
+    plt.savefig(protein.protein_id + '_align.jpg')
+    plt.close()
+    #return(score)
 
