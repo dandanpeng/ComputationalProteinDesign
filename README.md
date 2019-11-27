@@ -9,7 +9,7 @@ Based on this, we broke a protein structure into several TERMs and found structu
 ## Enery Function
 We wanted the structural matches' overlap parts' have the same amino acids and use as least fragments as possible to cover the whole protein sequence.
 The energy function was defined as:
-
+![](https://github.com/dandanpeng/ComputationalProteinDesign/blob/master/energyfunction.png)
 - First term: sum up the blosum score for all positions on the sequence
 - Second term: regularization term to limit the number of fragments used
 
