@@ -14,3 +14,4 @@ The energy function was defined as:
 - Second term: regularization term to limit the number of fragments used
 
 ## Comparison to others
+![](https://github.com/dandanpeng/ComputationalProteinDesign/blob/master/comparison.png)
